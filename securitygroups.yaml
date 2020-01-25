@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creates securityGroups for the VPC.
+Parameters: 
+    EnvironmentName: 
+        Description: "A prefix for the resource names."
+        Type: String
+        Default: MyVPC
+    VPC:
+        Description: IP range of the VPC in CIDR notation.
+        Type: AWS::EC2::VPC::Id
+
+Resources:
+    PublicPortsForJenkins:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            VpcId: !Ref VPC
+            GroupName: "Jenkins permissions"
+            GroupDescription: "Open ports for public subnets in the VPC."
+            SecurityGroupIngress:
+            - IpProtocol: 'tcp'
+              FromPort: '22'
+              ToPort: '22'
+              CidrIp: '0.0.0.0/0'
+            - IpProtocol: 'tcp'
+              FromPort: '443'
+              ToPort: '443'
+              CidrIp: 0.0.0.0/0
+            - IpProtocol: 'tcp'
+              FromPort: '8080'
+              ToPort: '8080'
+              CidrIp: '0.0.0.0/0'
+            Tags:
+            - Key: Name
+              Value: !Sub "JenkinsSecurityGroup-${EnvironmentName}"
+Outputs:
+    PublicPortsForJenkins:
+        Description: "Jenkins SecurityGroups."
+        Value: !Ref PublicPortsForJenkins
+        Export: 
+            Name: !Join ['-', ['PublicPortsForJenkins',!Ref EnvironmentName]]

@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creates a Jenkins instance for orchestration.
+Parameters: 
+    EnvironmentName: 
+        Description: "A prefix for the resource names."
+        Type: String
+        Default: MyVPC
+    VPC:
+        Description: "IP range of the VPC in CIDR notation."
+        Type: AWS::EC2::VPC::Id
+    PublicSubNetAId:
+        Description: "Public Subnet A to locate a Jenkins instance."
+        Type: AWS::EC2::Subnet::Id
+    PublicSubNetBId:
+        Description: "Public Subnet B to locate a Jenkins instance."
+        Type: AWS::EC2::Subnet::Id
+    PublicPortsForJenkins:
+        Description: "SecuirtyGroups for Jenkins Instance."
+        Type: AWS::EC2::SecurityGroup::Id
+Mappings:
+  RegionMap:
+    ap-northeast-1:
+      AmznLinuxAmi: "ami-0c11b26d"
+      CentOS7Ami: "ami-eec1c380"
+      RegionAlias: "Tokyo"
+    ap-northeast-2:
+      AmznLinuxAmi: "ami-983ce8f6"
+      CentOS7Ami: "ami-c74789a9"
+      RegionAlias: "Seoul"
+    ap-south-1:
+      AmznLinuxAmi: "NOT-AVAILABLE"
+      CentOS7Ami: "ami-95cda6fa"
+      RegionAlias: "Mumbai"
+    ap-southeast-1:
+      AmznLinuxAmi: "ami-b953f2da"
+      CentOS7Ami: "ami-f068a193"
+      RegionAlias: "Singapore"
+    ap-southeast-2:
+      AmznLinuxAmi: "ami-db704cb8"
+      CentOS7Ami: "ami-fedafc9d"
+      RegionAlias: "Sydney"
+    eu-central-1:
+      AmznLinuxAmi: "ami-f9619996"
+      CentOS7Ami: "ami-9bf712f4"
+      RegionAlias: "Frankfurt"
+    eu-west-1:
+      AmznLinuxAmi: "ami-9398d3e0"
+      CentOS7Ami: "ami-7abd0209"
+      RegionAlias: "Ireland"
+    sa-east-1:
+      AmznLinuxAmi: "ami-97831ffb"
+      CentOS7Ami: "ami-26b93b4a"
+      RegionAlias: "SaoPaulo"
+    us-east-1:
+      AmznLinuxAmi: "ami-b73b63a0"
+      CentOS7Ami: "ami-6d1c2007"
+      RegionAlias: "Virginia"
+    us-east-2:
+      AmznLinuxAmi: "ami-58277d3d"
+      CentOS7Ami: "ami-6a2d760f"
+      RegionAlias: "Ohio"
+    us-west-1:
+      AmznLinuxAmi: "ami-23e8a343"
+      CentOS7Ami: "ami-af4333cf"
+      RegionAlias: "California"
+    us-west-2:
+      AmznLinuxAmi: "ami-5ec1673e"
+      CentOS7Ami: "ami-d2c924b2"
+      RegionAlias: "Oregon"
+        
+Resources:
+    ElasticIpForJenkins:
+        Type: AWS::EC2::EIP
+        Properties:
+            Domain: vpc
+    ElasticIPAssociationForJenkins:
+        Type: AWS::EC2::EIPAssociation
+        DependsOn: ElasticIpForJenkins
+        Properties: 
+            EIP: !Ref ElasticIpForJenkins
+            InstanceId: !Ref Ec2InstanceJenkins     
+    Ec2InstanceJenkins:
+        Type: AWS::EC2::Instance
+        DeletionPolicy: Delete
+        Properties:
+            InstanceInitiatedShutdownBehavior: terminate
+            SubnetId: !Ref PublicSubNetAId
+            InstanceType: "t2.nano"
+            ImageId: !FindInMap [ RegionMap, !Ref "AWS::Region" , CentOS7Ami ]
+            SecurityGroupIds:
+                - !Ref PublicPortsForJenkins
+            KeyName: "dabs-Jenkins"    
+            Tags:
+            - Key: Name
+              Value: !Sub "orchestrator-${EnvironmentName}"
+            UserData:
+                Fn::Base64: !Sub |
+                    #!/bin/bash -xe
+                    yum install epel-release -y
+                    yum update -y 
+                    yum install java -y 
+                    $javaver=$(java -version)
+                    cp /etc/profile /etc/profile_backup
+                    echo 'export JAVA_HOME=/usr/lib/jvm/$javaver' | sudo tee -a /etc/profile
+                    echo 'export JRE_HOME=/usr/lib/jvm/jre' | sudo tee -a /etc/profile
+                    source /etc/profile
+                    cd ~
+                    wget -O /etc/yum.repos.d/jenkins.repo http://pkg.jenkins-ci.org/redhat-stable/jenkins.repo
+                    yum install wget -y 
+                    wget -O /etc/yum.repos.d/jenkins.repo http://pkg.jenkins-ci.org/redhat-stable/jenkins.repo
+                    rpm --import http://pkg.jenkins-ci.org/redhat-stable/jenkins-ci.org.key
+                    yum install jenkins -y 
+                    systemctl start jenkins.service
+                    systemctl enable jenkins.service
